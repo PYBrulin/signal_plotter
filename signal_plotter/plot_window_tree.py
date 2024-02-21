@@ -6,7 +6,6 @@ import sys
 from typing import NoReturn, Optional
 
 import numpy as np
-from log import setup_logger
 from pyqtgraph import PlotWidget, intColor
 from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtGui import QColor, QPalette
@@ -25,7 +24,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-setup_logger()
+logger = logging.getLogger('plot_window_tree')
+logger.setLevel(logging.INFO)
+
 
 pyqtSignal = Signal
 pyqtSlot = Slot
@@ -111,7 +112,7 @@ class ListContainer(QScrollArea):
                 child.setText(0, key.split(".")[j])
                 tree_parent_levels.append(child)
 
-            logging.debug(
+            logger.debug(
                 [
                     i,
                     j,
@@ -235,7 +236,7 @@ class SignalContainer(QWidget):
                 else:
                     # if the signals don't have the same length, the plot will fail
                     if len(self.items[self.x_component]["y"]) != len(data["y"]):
-                        logging.error(
+                        logger.error(
                             f"Signal {key} has different length for x and y components: "
                             + f"{len(self.items[self.x_component]['y'])} != {len(data['y'])}"
                         )
@@ -299,7 +300,7 @@ def main(items: dict = None, pre_select: list[str] = None, x_component: str = No
     # Check if the x_component is safe to use
     if x_component is not None:
         if x_component not in items:
-            logging.error(f"Selected x_component {x_component} not found in items dict")
+            logger.error(f"Selected x_component {x_component} not found in items dict")
             x_component = None
 
     # Create the main window
@@ -348,5 +349,5 @@ if __name__ == "__main__":
             "group_0.signal_0.subsignal_2",
             "external_signal4",
         ],
-        x_component="group_0.signal_0.subsignal_0",
+        # x_component="group_0.signal_0.subsignal_0",
     )
