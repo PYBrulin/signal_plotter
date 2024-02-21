@@ -1,0 +1,42 @@
+[project]
+name = "signal_plotter"
+authors = [
+    {name = "Pierre-Yves BRULIN", email = "40915900+PYBrulin@users.noreply.github.com"},
+]
+description = "Simple signal plotter for python using pyqtgraph"
+readme = "README.md"
+requires-python = ">=3.7"
+keywords = ["one", "two"]
+license = {text = "BSD-3-Clause"}
+classifiers = [
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dynamic = ["version"]
+dependencies = [
+    "PySide6",
+    "pyqtgraph"
+]
+
+[build-system]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+version_file = "signal_plotter/_version.py"
+
+[tool.setuptools]
+packages = ["signal_plotter"]
+
+[tool.isort]
+known_first_party = "signal_plotter"
+atomic = true
+line_length = 127
+multi_line_output = 3
+use_parentheses = true
+include_trailing_comma = true
+force_grid_wrap = 0
+
+[tool.black]
+skip-string-normalization = true
+line-length = 127
