@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import logging
-import sys, os
-from typing import NoReturn
+import os
+import sys
+from typing import NoReturn, Optional
 
 import numpy as np
+from log import setup_logger
 from pyqtgraph import PlotWidget, intColor
 from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QHBoxLayout,
     QHeaderView,
+    QLabel,
     QScrollArea,
     QSplitter,
     QTreeWidget,
@@ -20,6 +24,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+setup_logger()
 
 pyqtSignal = Signal
 pyqtSlot = Slot
@@ -48,6 +54,9 @@ class ListContainer(QScrollArea):
             # self.listItem[key].setdefault("state", False)
             self.listItem[key]["state"] = key in items
         self.changeItem.emit([self.listItem[k]["state"] for k in self.listItem.keys()])
+
+        # Reset the UI to reflect the new state and check the pre-selected items
+        self.resetUI()
 
     def initUI(self) -> None:
         self.tree = QTreeWidget()
@@ -142,10 +151,13 @@ class ListContainer(QScrollArea):
 class SignalContainer(QWidget):
     changeParam = pyqtSignal(dict)
 
-    def __init__(self, items: dict = None) -> None:
+    def __init__(self, items: dict = None, x_component: Optional[str] = "x") -> None:
         super().__init__()
         self.items = items
         self.title = "Signal plotter"
+
+        self.x_component: str = x_component if x_component is not None else "x"
+        self.x_options: list[str] = ["x"] + list(self.items.keys())
 
         self.sigstate = []
         self.initUI()
@@ -160,16 +172,30 @@ class SignalContainer(QWidget):
         self.splitter = QSplitter()
         self.mainLayout.addWidget(self.splitter)
 
+        self.selectorWidget = QWidget()
+        self.selectorLayout = QVBoxLayout()
+        self.selectorWidget.setLayout(self.selectorLayout)
+        self.splitter.addWidget(self.selectorWidget)
+
         # Create the list container
+        self.x_axis_label = QLabel("Signals:")
+        self.selectorLayout.addWidget(self.x_axis_label)
         self.select = ListContainer(self.items)
         self.select.changeItem.connect(self.setSignal)
-        self.splitter.addWidget(self.select)
+        self.selectorLayout.addWidget(self.select)
+        # self.splitter.addWidget(self.select)
 
-        self.signalLayout = QVBoxLayout()
+        # Create the x_axis selector
+        self.x_axis_label = QLabel("X axis:")
+        self.selectorLayout.addWidget(self.x_axis_label)
+        self.x_axis = QComboBox()
+        self.x_axis.addItems(self.x_options)
+        self.x_axis.setCurrentIndex(self.x_options.index(self.x_component))
+        self.x_axis.currentIndexChanged.connect(self.setXAxis)
+        self.selectorLayout.addWidget(self.x_axis)
 
         # Create the graph
         self.graphWidget = PlotWidget()
-        self.signalLayout.addWidget(self.graphWidget)
         # self.mainLayout.addLayout(self.signalLayout)
         self.splitter.addWidget(self.graphWidget)
 
@@ -188,6 +214,12 @@ class SignalContainer(QWidget):
         self.graphWidget.setDownsampling(ds=True, auto=True, mode="subsample")
         self.graphWidget.addLegend()  # add grid
 
+    def setXAxis(self, index: int) -> None:
+        self.x_component = self.x_options[index]
+
+        # update graph (with the same signals)
+        self.setSignal(self.sigstate)
+
     @pyqtSlot(list)
     def setSignal(self, states) -> None:
         self.sigstate = states
@@ -198,11 +230,33 @@ class SignalContainer(QWidget):
         j = 0
         for i, (key, data) in enumerate(self.items.items()):
             if self.sigstate[i]:  # display signal
-                self.graphWidget.plot(data["x"], data["y"], name=key, pen=intColor(j))
+                if self.x_component == "x":
+                    self.graphWidget.plot(data["x"], data["y"], name=key, pen=intColor(j))
+                else:
+                    # if the signals don't have the same length, the plot will fail
+                    if len(self.items[self.x_component]["y"]) != len(data["y"]):
+                        logging.error(
+                            f"Signal {key} has different length for x and y components: "
+                            + f"{len(self.items[self.x_component]['y'])} != {len(data['y'])}"
+                        )
+                        continue
+                    self.graphWidget.plot(self.items[self.x_component]["y"], data["y"], name=key, pen=intColor(j))
                 j += 1
 
 
 def main(items: dict = None, pre_select: list[str] = None, x_component: str = None) -> NoReturn:
+    """
+    Initialize an oscilloscope-like window with the given signals.
+
+    Args:
+        items (dict): Dictionary of signals to be displayed. Each key is a signal name and the value is another dict with both "x" and "y" keys, each containing a numpy array with the signal data.
+        pre_select (list[str]): List of signal names to be pre-selected.
+        x_component (str): Name of the signal to be used as x axis. If None, the first signal will be used.
+
+    Returns:
+        NoReturn: None
+    """
+
     app = QApplication(sys.argv)
 
     # Now use a palette to switch to dark colors:
@@ -237,17 +291,28 @@ def main(items: dict = None, pre_select: list[str] = None, x_component: str = No
         + os.path.relpath(os.path.join(os.path.dirname(__file__), "arrow-closed.png"), os.getcwd()).replace("\\", "/")
         + """);
     }
+
+    QComboBox { background-color: black; }
     """
     )
 
-    ex = SignalContainer(items=items)
+    # Check if the x_component is safe to use
     if x_component is not None:
         if x_component not in items:
             logging.error(f"Selected x_component {x_component} not found in items dict")
+            x_component = None
+
+    # Create the main window
+    ex = SignalContainer(items=items, x_component=x_component)
+
+    # Set pre-selected items
     if pre_select is not None:
         ex.select.set_manual_keys(pre_select)
+
+    # Show the window
     ex.show()
 
+    # Run the application and wait for the window to be closed
     sys.exit(app.exec())
 
 
@@ -283,4 +348,5 @@ if __name__ == "__main__":
             "group_0.signal_0.subsignal_2",
             "external_signal4",
         ],
+        x_component="group_0.signal_0.subsignal_0",
     )
