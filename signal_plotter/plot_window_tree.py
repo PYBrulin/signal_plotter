@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMainWindow,
     QScrollArea,
     QSplitter,
     QTreeWidget,
@@ -152,7 +153,7 @@ class ListContainer(QScrollArea):
 class SignalContainer(QWidget):
     changeParam = pyqtSignal(dict)
 
-    def __init__(self, items: dict = None, x_component: Optional[str] = "x") -> None:
+    def __init__(self, items: dict = None, x_component: Optional[str] = "x", **kwargs) -> None:
         super().__init__()
         self.items = items
         self.title = "Signal plotter"
@@ -161,9 +162,9 @@ class SignalContainer(QWidget):
         self.x_options: list[str] = ["x"] + list(self.items.keys())
 
         self.sigstate = []
-        self.initUI()
+        self.initUI(**kwargs)
 
-    def initUI(self) -> None:
+    def initUI(self, **kwargs) -> None:
         self.setWindowTitle(self.title)
         self.resize(800, 400)
         self.mainLayout = QHBoxLayout()
@@ -212,7 +213,11 @@ class SignalContainer(QWidget):
         # Setup clipping and downsampling to reduce CPU usage
         # We expect very large signal data sets, so downsampling is a must
         self.graphWidget.setClipToView(clip=True)
-        self.graphWidget.setDownsampling(ds=True, auto=True, mode="subsample")
+        self.graphWidget.setDownsampling(
+            ds=kwargs.get("downsampling", True),
+            auto=True,
+            mode="subsample",
+        )
         self.graphWidget.addLegend()  # add grid
 
     def setXAxis(self, index: int) -> None:
@@ -245,7 +250,7 @@ class SignalContainer(QWidget):
                 j += 1
 
 
-def main(items: dict = None, pre_select: list[str] = None, x_component: str = None) -> NoReturn:
+def main(items: dict = None, pre_select: list[str] = None, x_component: str = None, **kwargs) -> NoReturn:
     """
     Initialize an oscilloscope-like window with the given signals.
 
@@ -304,14 +309,19 @@ def main(items: dict = None, pre_select: list[str] = None, x_component: str = No
             x_component = None
 
     # Create the main window
-    ex = SignalContainer(items=items, x_component=x_component)
+    main_window = QMainWindow()
+    main_window.setWindowTitle("Signal plotter")
+    main_window.resize(800, 400)
+
+    ex = SignalContainer(items=items, x_component=x_component, **kwargs)
+    main_window.setCentralWidget(ex)
 
     # Set pre-selected items
     if pre_select is not None:
         ex.select.set_manual_keys(pre_select)
 
     # Show the window
-    ex.show()
+    main_window.show()
 
     # Run the application and wait for the window to be closed
     sys.exit(app.exec())
@@ -350,4 +360,5 @@ if __name__ == "__main__":
             "external_signal4",
         ],
         # x_component="group_0.signal_0.subsignal_0",
+        downsampling=False,
     )
