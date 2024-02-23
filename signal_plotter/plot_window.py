@@ -18,7 +18,7 @@ class ListContainer(QScrollArea):
     changeItem = pyqtSignal(list)
 
     def __init__(self, items: dict = None, parent=None) -> None:
-        super(ListContainer, self).__init__(parent)
+        super().__init__(parent)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.setWidgetResizable(True)
@@ -99,6 +99,10 @@ class SignalContainer(QWidget):
         self.signalLayout.addWidget(self.graphWidget)
         # self.mainLayout.addLayout(self.signalLayout)
         self.splitter.addWidget(self.graphWidget)
+
+        # Set Strecth factor to give plot the most space
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 10)
 
         # tune plots
         self.graphWidget.setBackground((50, 50, 50, 220))  # RGBA         #background
