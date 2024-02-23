@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from typing import NoReturn, Optional
+from typing import NoReturn
 
 import numpy as np
 from pyqtgraph import PlotWidget, intColor
@@ -12,16 +12,17 @@ from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QMainWindow,
+    QPushButton,
     QScrollArea,
     QSplitter,
     QTreeWidget,
     QTreeWidgetItem,
     QTreeWidgetItemIterator,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -37,7 +38,7 @@ class ListContainer(QScrollArea):
     changeItem = pyqtSignal(list)
 
     def __init__(self, items: dict = None, parent=None) -> None:
-        super(ListContainer, self).__init__(parent)
+        super().__init__(parent)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         # self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.setWidgetResizable(True)
@@ -52,7 +53,7 @@ class ListContainer(QScrollArea):
 
     def set_manual_keys(self, items) -> None:
         # For each element in items add a "state" flag
-        for key, value in self.listItem.items():
+        for key, _ in self.listItem.items():
             # self.listItem[key].setdefault("state", False)
             self.listItem[key]["state"] = key in items
         self.changeItem.emit([self.listItem[k]["state"] for k in self.listItem.keys()])
@@ -153,7 +154,7 @@ class ListContainer(QScrollArea):
 class SignalContainer(QWidget):
     changeParam = pyqtSignal(dict)
 
-    def __init__(self, items: dict = None, x_component: Optional[str] = "x", **kwargs) -> None:
+    def __init__(self, items: dict = None, x_component: str | None = "x", **kwargs) -> None:
         super().__init__()
         self.items = items
         self.title = "Signal plotter"
@@ -174,32 +175,43 @@ class SignalContainer(QWidget):
         self.splitter = QSplitter()
         self.mainLayout.addWidget(self.splitter)
 
+        # region Selector Widget
         self.selectorWidget = QWidget()
-        self.selectorLayout = QVBoxLayout()
+        self.selectorLayout = QGridLayout()
         self.selectorWidget.setLayout(self.selectorLayout)
         self.splitter.addWidget(self.selectorWidget)
 
         # Create the list container
         self.x_axis_label = QLabel("Signals:")
-        self.selectorLayout.addWidget(self.x_axis_label)
+        self.selectorLayout.addWidget(self.x_axis_label, 0, 0, 1, 1)
+        # Clear button
+        self.clearButton = QPushButton("Clear")
+        self.clearButton.setAutoFillBackground(True)
+        self.clearButton.clicked.connect(self.clearSignals)
+        self.selectorLayout.addWidget(self.clearButton, 0, 2, 1, 1)
+        # List container
         self.select = ListContainer(self.items)
         self.select.changeItem.connect(self.setSignal)
-        self.selectorLayout.addWidget(self.select)
-        # self.splitter.addWidget(self.select)
+        self.selectorLayout.addWidget(self.select, 2, 0, 1, 3)
 
         # Create the x_axis selector
         self.x_axis_label = QLabel("X axis:")
-        self.selectorLayout.addWidget(self.x_axis_label)
+        self.selectorLayout.addWidget(self.x_axis_label, 3, 0, 1, 1)
         self.x_axis = QComboBox()
         self.x_axis.addItems(self.x_options)
         self.x_axis.setCurrentIndex(self.x_options.index(self.x_component))
         self.x_axis.currentIndexChanged.connect(self.setXAxis)
-        self.selectorLayout.addWidget(self.x_axis)
+        self.selectorLayout.addWidget(self.x_axis, 3, 1, 1, 2)
+        # endregion Selector Widget
 
-        # Create the graph
+        # region Plot Widget
         self.graphWidget = PlotWidget()
         # self.mainLayout.addLayout(self.signalLayout)
         self.splitter.addWidget(self.graphWidget)
+
+        # Set Strecth factor to give plot the most space
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 10)
 
         # tune plots
         self.graphWidget.setBackground((50, 50, 50, 220))  # RGBA         #background
@@ -219,12 +231,17 @@ class SignalContainer(QWidget):
             mode="subsample",
         )
         self.graphWidget.addLegend()  # add grid
+        # endregion Plot Widget
 
     def setXAxis(self, index: int) -> None:
         self.x_component = self.x_options[index]
 
         # update graph (with the same signals)
         self.setSignal(self.sigstate)
+
+    def clearSignals(self) -> None:
+        # self.select.changeItem.emit([False] * len(self.items))
+        self.select.set_manual_keys([])
 
     @pyqtSlot(list)
     def setSignal(self, states) -> None:
@@ -274,7 +291,7 @@ def main(items: dict = None, pre_select: list[str] = None, x_component: str = No
     palette.setColor(QPalette.ToolTipBase, Qt.white)
     palette.setColor(QPalette.ToolTipText, Qt.white)
     palette.setColor(QPalette.Text, Qt.white)
-    palette.setColor(QPalette.Button, QColor(50, 50, 50))
+    palette.setColor(QPalette.Button, Qt.black)
     palette.setColor(QPalette.ButtonText, Qt.white)
     palette.setColor(QPalette.BrightText, Qt.red)
     palette.setColor(QPalette.Link, QColor(99, 190, 231))
@@ -286,20 +303,19 @@ def main(items: dict = None, pre_select: list[str] = None, x_component: str = No
     # Set custom arrow style as the color is not configurable through the palette
     app.setStyleSheet(
         """
-    QTreeView::branch::closed::has-children {
-        image: url("""
+        QTreeView::branch::closed::has-children {
+            image: url("""
         + os.path.relpath(os.path.join(os.path.dirname(__file__), "arrow.png"), os.getcwd()).replace("\\", "/")
         + """);
-    }
-
-    QTreeView::branch::open::has-children {
-        image: url("""
+        }
+        QTreeView::branch::open::has-children {
+            image: url("""
         + os.path.relpath(os.path.join(os.path.dirname(__file__), "arrow-closed.png"), os.getcwd()).replace("\\", "/")
         + """);
-    }
-
-    QComboBox { background-color: black; }
-    """
+        }
+        QComboBox { background-color: black; }
+        QPushButton { background-color: black; }
+        """
     )
 
     # Check if the x_component is safe to use
