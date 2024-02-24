@@ -1,3 +1,9 @@
+"""
+An old implementation of a signal plotter using PyQtGraph
+Kept for backward compatibility for other projects.
+Don't import this script in new projects.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -6,12 +12,16 @@ from typing import NoReturn
 
 import numpy as np
 from pyqtgraph import PlotWidget, intColor
-from PySide6.QtCore import Qt, Signal, Slot
-from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QApplication, QCheckBox, QHBoxLayout, QScrollArea, QSplitter, QVBoxLayout, QWidget
+from pyqtgraph.Qt.QtCore import Qt, Signal, Slot
+from pyqtgraph.Qt.QtGui import QColor, QPalette
+from pyqtgraph.Qt.QtWidgets import QApplication, QCheckBox, QHBoxLayout, QScrollArea, QSplitter, QVBoxLayout, QWidget
 
 pyqtSignal = Signal
 pyqtSlot = Slot
+
+logging.warning("======================================================================")
+logging.warning("== This script is deprecated and should not be used in new projects ==")
+logging.warning("======================================================================")
 
 
 class ListContainer(QScrollArea):
@@ -133,7 +143,7 @@ class SignalContainer(QWidget):
                 j += 1
 
 
-def main(items: dict = None) -> NoReturn:
+def plot_window(items: dict = None) -> NoReturn:
     app = QApplication(sys.argv)
 
     # Now use a palette to switch to dark colors:
@@ -173,4 +183,4 @@ if __name__ == "__main__":
             "y": x * fun(time) + np.random.normal(scale=s, size=len(time)),
         }
 
-    main(items=items)
+    plot_window(items=items)
