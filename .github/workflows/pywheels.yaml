@@ -26,6 +26,11 @@ jobs:
 
       # Used to host cibuildwheel
       - uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Install package
+        run: python -m pip install .
 
       - name: Build wheels
         run: python -m pip wheel -w dist .
