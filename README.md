@@ -1,8 +1,8 @@
 # Simple signal plotter
 
-This is a simple signal plotter that uses `pyqtgraph` to plot signals. It is a simple tool that can be used to plot signals in a quick and easy way.
+This is a simple signal plotter that uses `pyqtgraph` to plot signals. It is a simple tool that can be used to plot data and timeseries in a quick and relatively easy way.
 
-![Simple plotter window](./.github/capture.png)
+![Simple plotter window](./.github/plot_window.png)
 
 ## Installation
 
@@ -20,7 +20,7 @@ From the repository:
 pip install git+https://github.com/PYBrulin/signal_plotter.git
 ```
 
-# Usage
+## Usage
 
 It is also possible to specify the units of the signals. This can be done by adding a `units` key to the nested dictionary. For example:
 The package only requires a basic formatting of the data to be plotted. The data should be formatted as a dictionary with required keys: `x` and `y`. Each signal should then be nested in another dictionary, with the key being the name of the signal and the value being the dictionary containing the `x` and `y` data.
@@ -52,7 +52,32 @@ data = {
 The data can then be plotted using the following code:
 
 ```python
-from signal_plotter.plot_window_tree import plot_signals
+from signal_plotter.plot_window import plot_signals
 data = { ... }
 plot_signals(data)
+```
+
+## CSV Parser
+
+The script `csv_parser.py` is a simple script that can be used to parse a CSV file and plot the data. The script can be used directly from the command line if the package is installed:
+
+```bash
+python -m signal_plotter.csv_parser.py path/to/file.csv
+```
+
+Documentation for the script can be found using the `-h` flag:
+
+```bash
+csv_parser.py [-h] [-x X] [-y Y [Y ...]] csv_file
+
+Read the content of a csv file with pandas and plot the results
+
+positional arguments:
+  csv_file              The csv file to read
+
+options:
+  -h, --help            show this help message and exit
+  -x X, --x X           The x axis column
+  -y Y [Y ...], --y Y [Y ...]
+                        The y axis columns
 ```
