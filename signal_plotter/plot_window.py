@@ -38,7 +38,7 @@ pyqtSlot = Slot
 class ListContainer(QScrollArea):
     changeItem = pyqtSignal(dict)
 
-    def __init__(self, items: dict = None, parent=None) -> None:
+    def __init__(self, items: dict = None, sub_groups: dict = None, parent=None) -> None:
         super().__init__(parent)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         # self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
@@ -49,8 +49,15 @@ class ListContainer(QScrollArea):
         for key, value in self.listItem.items():
             self.listItem[key].setdefault("state", False)
 
+        # User-defined subgroups of signals
+        self.listSubGroups = sub_groups
+
         self.itemChk = []
         self.initUI()
+
+    @property
+    def has_subgroups(self) -> bool:
+        return self.listSubGroups is not None
 
     def set_manual_keys(self, items) -> None:
         # For each element in items add a "state" flag
@@ -63,23 +70,38 @@ class ListContainer(QScrollArea):
         self.resetUI()
 
     def initUI(self) -> None:
+        # Create the tree widget
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
-        self.setWidget(self.tree)
 
         # Set size of all columns according to the content
         self.tree.header().setSectionResizeMode(QHeaderView.ResizeToContents)
 
+        if self.has_subgroups:
+            self.tree_splitter = QSplitter()
+            self.tree_splitter.setOrientation(Qt.Vertical)
+            self.tree_splitter.addWidget(self.tree)
+
+            # Add a second tree for the subgroups
+            self.subtree = QTreeWidget()
+            self.subtree.setHeaderHidden(True)
+            self.tree_splitter.addWidget(self.subtree)
+            self.subtree.header().setSectionResizeMode(QHeaderView.ResizeToContents)
+
+            # Set the splitter as the main widget
+            self.setWidget(self.tree_splitter)
+        else:
+            # Set the tree as the main widget
+            self.setWidget(self.tree)
+
         self.resetUI()
 
-    def resetUI(self) -> None:
+    def update_selected_tree(self) -> None:
         # Clear the tree
         self.tree.clear()
 
         # Populate the tree
         # For each key in the dict Add a button to append the item to the selcted list
-        current_box = []
-
         current_box = []
         tree_parent_levels = [self.tree]
 
@@ -115,9 +137,30 @@ class ListContainer(QScrollArea):
                 child.setText(0, key.split(".")[j])
                 tree_parent_levels.append(child)
 
-        self.tree.clicked.connect(self.vrfs_selected)
+    def update_selected_subtree(self) -> None:
+        self.subtree.clear()
+        for key, value in self.listSubGroups.items():
+            child = QTreeWidgetItem(self.subtree)
+            child.setText(0, key)
+            child.setFlags(child.flags() | Qt.ItemIsAutoTristate | Qt.ItemIsUserCheckable)
+            for sub_value in value:
+                sub_child = QTreeWidgetItem(child)
+                sub_child.setFlags(sub_child.flags() | child.flags() | Qt.ItemIsAutoTristate | Qt.ItemIsUserCheckable)
+                sub_child.setCheckState(
+                    0,
+                    Qt.Unchecked if not self.listItem[sub_value]["state"] else Qt.Checked,
+                )
+                sub_child.setText(0, sub_value)
 
-    def vrfs_selected(self) -> None:
+    def resetUI(self) -> None:
+        self.update_selected_tree()
+        self.tree.clicked.connect(self.items_selected)
+
+        if self.has_subgroups:
+            self.update_selected_subtree()
+            self.subtree.clicked.connect(self.subgroups_selected)
+
+    def items_selected(self) -> None:
         """Function to check whick box is checked inside de QTreeWidget in the tab window"""
         iterator = QTreeWidgetItemIterator(
             self.tree,
@@ -140,6 +183,30 @@ class ListContainer(QScrollArea):
             self.listItem[key]["state"] = key in checked
         self.changeItem.emit({key: {"state": value["state"]} for key, value in self.listItem.items()})
 
+        if self.has_subgroups:
+            self.update_selected_subtree()
+
+    def subgroups_selected(self) -> None:
+        """Function to check whick box is checked inside de QTreeWidget in the tab window"""
+        iterator = QTreeWidgetItemIterator(
+            self.subtree,
+            QTreeWidgetItemIterator.Checked,
+        )
+        checked = []
+        while iterator.value():
+            item = iterator.value()
+            # Recusively find the parent of the item
+            name = item.text(0)
+            checked.append(name)
+            iterator += 1
+
+        # Set state and emit signal
+        for key in self.listItem.keys():
+            self.listItem[key]["state"] = key in checked
+        self.changeItem.emit({key: {"state": value["state"]} for key, value in self.listItem.items()})
+
+        self.update_selected_tree()
+
 
 class SignalContainer(QWidget):
     changeParam = pyqtSignal(dict)
@@ -153,16 +220,23 @@ class SignalContainer(QWidget):
 
     def __init__(self, items: dict = None, x_component: str | None = "x", **kwargs) -> None:
         super().__init__()
-        self.items = items
         self.title = "Signal plotter"
 
+        # Items dictionary of signals to be displayed
+        self.items = items
+        self.sub_goups = kwargs.get("sub_groups", None)
+
+        # X-axis component
         self.x_component: str = x_component if x_component is not None else "x"
         self.x_options: list[str] = ["x"] + list(self.items.keys())
 
+        # Signal state
         self.sigstate = []
 
+        # Axes dictionary
         self.axes = {}
 
+        # Set up the UI
         self.initUI(**kwargs)
 
     def initUI(self, **kwargs) -> None:
@@ -190,7 +264,7 @@ class SignalContainer(QWidget):
         self.clearButton.clicked.connect(self.clearSignals)
         self.selectorLayout.addWidget(self.clearButton, 0, 2, 1, 1)
         # List container
-        self.select = ListContainer(self.items)
+        self.select = ListContainer(self.items, self.sub_goups)
         self.select.changeItem.connect(self.setSignal)
         self.selectorLayout.addWidget(self.select, 1, 0, 1, 3)
 
@@ -404,7 +478,13 @@ class SignalContainer(QWidget):
         self.updateViews()
 
 
-def plot_window(items: dict = None, pre_select: list[str] = None, x_component: str = None, **kwargs) -> NoReturn:
+def plot_window(
+    items: dict = None,
+    pre_select: list[str] = None,
+    x_component: str = None,
+    sub_groups: dict[str, list[str]] = None,
+    **kwargs,
+) -> NoReturn:
     """
     Initialize an oscilloscope-like window with the given signals.
 
@@ -466,7 +546,7 @@ def plot_window(items: dict = None, pre_select: list[str] = None, x_component: s
     main_window.setWindowTitle("Signal plotter")
     main_window.resize(800, 400)
 
-    ex = SignalContainer(items=items, x_component=x_component, **kwargs)
+    ex = SignalContainer(items=items, x_component=x_component, sub_groups=sub_groups, **kwargs)
     main_window.setCentralWidget(ex)
 
     # Set pre-selected items
@@ -534,5 +614,9 @@ if __name__ == "__main__":
             "external_signal4",
         ],
         # x_component="group_0.signal_0.subsignal_0",
+        sub_groups={
+            "even": [signal for signal in items if "." not in signal and int(signal[-1]) % 2 == 0],
+            "odd": [signal for signal in items if "." not in signal and int(signal[-1]) % 2 == 1],
+        },
         downsampling=False,
     )
