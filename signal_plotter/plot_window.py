@@ -72,10 +72,14 @@ class ListContainer(QScrollArea):
     def initUI(self) -> None:
         # Create the tree widget
         self.tree = QTreeWidget()
-        self.tree.setHeaderHidden(True)
 
-        # Set size of all columns according to the content
-        self.tree.header().setSectionResizeMode(QHeaderView.ResizeToContents)
+        # Header
+        self.tree.setColumnCount(2)
+        self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.tree.header().setMinimumSectionSize(1)
+        self.tree.setColumnWidth(1, 1)
+        self.tree.header().setSectionResizeMode(1, QHeaderView.Fixed)
+        self.tree.setHeaderHidden(True)
 
         if self.has_subgroups:
             self.tree_splitter = QSplitter()
@@ -84,9 +88,16 @@ class ListContainer(QScrollArea):
 
             # Add a second tree for the subgroups
             self.subtree = QTreeWidget()
+
+            # Header
+            self.subtree.setColumnCount(2)
+            self.subtree.header().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+            self.subtree.header().setMinimumSectionSize(1)
+            self.subtree.setColumnWidth(1, 1)
+            self.subtree.header().setSectionResizeMode(1, QHeaderView.Fixed)
             self.subtree.setHeaderHidden(True)
+
             self.tree_splitter.addWidget(self.subtree)
-            self.subtree.header().setSectionResizeMode(QHeaderView.ResizeToContents)
 
             # Set the splitter as the main widget
             self.setWidget(self.tree_splitter)
@@ -106,7 +117,8 @@ class ListContainer(QScrollArea):
         tree_parent_levels = [self.tree]
 
         for i, key in enumerate(sorted(self.listItem.keys())):
-            for j in range(len(key.split("."))):
+            depth = len(key.split("."))
+            for j in range(depth):
                 if len(current_box) <= j:
                     # if current_box size is smaller than the current level
                     current_box.append(key.split(".")[j])
@@ -122,8 +134,7 @@ class ListContainer(QScrollArea):
                     tree_parent_levels = tree_parent_levels[: j + 1]
 
                 child = QTreeWidgetItem(tree_parent_levels[-1])
-                # if j == len(key.split(".")) - 1:
-                #     self.itemChk.append(child)
+
                 if j > 0:
                     child.setFlags(
                         child.flags() | tree_parent_levels[-1].flags() | Qt.ItemIsAutoTristate | Qt.ItemIsUserCheckable
@@ -135,6 +146,14 @@ class ListContainer(QScrollArea):
                     Qt.Unchecked if not self.listItem[key]["state"] else Qt.Checked,
                 )
                 child.setText(0, key.split(".")[j])
+
+                # Set the unit label at the end of the tree
+                if j == depth - 1:
+                    child.setText(
+                        1, f'[{self.listItem[key]["units"]}]' if self.listItem[key].get("units", None) is not None else ""
+                    )
+                    child.setTextAlignment(1, Qt.AlignRight)
+
                 tree_parent_levels.append(child)
 
     def update_selected_subtree(self) -> None:
@@ -151,6 +170,17 @@ class ListContainer(QScrollArea):
                     Qt.Unchecked if not self.listItem[sub_value]["state"] else Qt.Checked,
                 )
                 sub_child.setText(0, sub_value)
+
+                # Set the unit label in the second column
+                sub_child.setText(
+                    1,
+                    (
+                        f'[{self.listItem[sub_value]["units"]}]'
+                        if self.listItem[sub_value].get("units", None) is not None
+                        else ""
+                    ),
+                )
+                sub_child.setTextAlignment(1, Qt.AlignRight)
 
     def resetUI(self) -> None:
         self.update_selected_tree()
