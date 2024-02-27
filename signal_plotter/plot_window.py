@@ -220,7 +220,7 @@ class SignalContainer(QWidget):
 
     def __init__(self, items: dict = None, x_component: str | None = "x", **kwargs) -> None:
         super().__init__()
-        self.title = "Signal plotter"
+        self.title = kwargs.get("title", "Signal plotter")
 
         # Items dictionary of signals to be displayed
         self.items = items
@@ -543,7 +543,7 @@ def plot_window(
 
     # Create the main window
     main_window = QMainWindow()
-    main_window.setWindowTitle("Signal plotter")
+    main_window.setWindowTitle(kwargs.get("title", "Signal plotter"))
     main_window.resize(800, 400)
 
     ex = SignalContainer(items=items, x_component=x_component, sub_groups=sub_groups, **kwargs)
