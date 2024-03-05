@@ -27,6 +27,9 @@ version_file = "signal_plotter/_version.py"
 [tool.setuptools]
 packages = ["signal_plotter"]
 
+[tool.setuptools.package-data]
+micromlgen = ["signal_plotter/*.png"]
+
 [tool.isort]
 known_first_party = "signal_plotter"
 atomic = true

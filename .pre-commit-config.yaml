@@ -34,3 +34,4 @@ repos:
     hooks:
       - id: pyupgrade
         exclude: ^site-pacakges/
+        args: ["--py37-plus"]

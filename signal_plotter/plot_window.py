@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from typing import NoReturn
 
 import numpy as np
 from pyqtgraph import AxisItem, InfiniteLine, PlotCurveItem, PlotWidget, ViewBox, intColor
@@ -413,7 +412,10 @@ class SignalContainer(QWidget):
                 line=InfiniteLine(pos=0, angle=0),
                 units=units,
             )
-            self.plotItem.layout.addItem(self.axes[units].axis, 2, list(sorted(self.axes.keys())).index(units) + 3)
+            row = self.plotItem.layout.rowCount()
+            col = self.plotItem.layout.columnCount()
+            logging.debug(f"row {row} col {col}")
+            self.plotItem.layout.addItem(self.axes[units].axis, 2, col)
             self.plotScene.addItem(self.axes[units].view)
             self.axes[units].axis.linkToView(self.axes[units].view)
             self.axes[units].view.setXLink(self.plotItem)
@@ -488,7 +490,7 @@ class SignalContainer(QWidget):
                     units = data["units"]
                     plot = PlotCurveItem(data["x"], data["y"], name=key, pen=intColor(j))
                     self.axes[units].view.addItem(plot)
-                    self.legend.addItem(plot, f"{key} ({data['units']})")
+                    self.legend.addItem(plot, f"{key}" + (f" ({data['units']})" if "units" in data else ""))
                 else:
                     self.plotItem.plot(data["x"], data["y"], name=key, pen=intColor(j))
 
@@ -501,7 +503,10 @@ class SignalContainer(QWidget):
                     )
                     continue
                 self.plotItem.plot(
-                    self.items[self.x_component]["y"], data["y"], name=f"{key} ({data['units']})", pen=intColor(j)
+                    self.items[self.x_component]["y"],
+                    data["y"],
+                    name=f"{key}" + (f" ({data['units']})" if "units" in data else ""),
+                    pen=intColor(j),
                 )
 
         # Update the views
@@ -514,7 +519,7 @@ def plot_window(
     x_component: str = None,
     sub_groups: dict[str, list[str]] = None,
     **kwargs,
-) -> NoReturn:
+) -> None:
     """
     Initialize an oscilloscope-like window with the given signals.
 
@@ -524,7 +529,7 @@ def plot_window(
         x_component (str): Name of the signal to be used as x axis. If None, the first signal will be used.
 
     Returns:
-        NoReturn: None
+        None: None
     """
 
     app = QApplication(sys.argv)
@@ -587,7 +592,7 @@ def plot_window(
     main_window.show()
 
     # Run the application and wait for the window to be closed
-    sys.exit(app.exec())
+    app.exec()
 
 
 if __name__ == "__main__":
@@ -621,7 +626,7 @@ if __name__ == "__main__":
         s = np.random.rand() * 0.2  # random scale
         fun = np.random.choice([np.sin, np.cos])  # random function
 
-        items["external_signal{}".format(i)] = {
+        items[f"external_signal{i}"] = {
             "x": time,
             "y": x * fun(time) + np.random.normal(scale=s, size=len(time)),
             "units": "A",
@@ -629,7 +634,7 @@ if __name__ == "__main__":
 
     items.update(
         {
-            "external_signal99".format(i): {
+            f"external_signal99": {
                 "x": time,
                 "y": np.random.rand(len(time)) * 100,
                 "units": "Nm",
