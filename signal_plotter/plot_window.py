@@ -12,10 +12,12 @@ from pyqtgraph.Qt.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QCompleter,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QPushButton,
     QScrollArea,
@@ -34,6 +36,19 @@ pyqtSignal = Signal
 pyqtSlot = Slot
 
 
+class MyCompleter(QCompleter):
+    def splitPath(self, path):
+        return path.split('.')
+
+    def pathFromIndex(self, index):
+        result = []
+        while index.isValid():
+            result = [self.model().data(index, Qt.DisplayRole)] + result
+            index = index.parent()
+        r = '.'.join(result)
+        return r
+
+
 class ListContainer(QScrollArea):
     changeItem = pyqtSignal(dict)
 
@@ -47,6 +62,7 @@ class ListContainer(QScrollArea):
         self.listItem = items
         for key, value in self.listItem.items():
             self.listItem[key].setdefault("state", False)
+            self.listItem[key].setdefault("visible", True)
 
         # User-defined subgroups of signals
         self.listSubGroups = sub_groups
@@ -284,33 +300,51 @@ class SignalContainer(QWidget):
         self.selectorWidget.setLayout(self.selectorLayout)
         self.splitter.addWidget(self.selectorWidget)
 
+        # Add the search bar
+        row = 0
+        self.searchbar = QLineEdit()
+        self.searchbar.textChanged.connect(self.select.update_selected_subtree)
+        # self.search = MyCompleter(self.searchbar)
+        # self.search.setModel(list(self.items.keys()))
+        # self.search.setCompletionColumn(0)
+        # self.search.setCompletionRole(Qt.DisplayRole)
+        # self.search.setCaseSensitivity(Qt.CaseInsensitive)
+        # self.search.setCompletionMode(QCompleter.PopupCompletion)
+        # self.search.setWrapAround(False)
+        # self.search.setCompletionMode(QCompleter.UnfilteredPopupCompletion)
+        self.selectorLayout.addWidget(self.searchbar, row, 0, 1, 3)
+
         # Create the list container
+        row += 1
         self.x_axis_label = QLabel("Signals:")
-        self.selectorLayout.addWidget(self.x_axis_label, 0, 0, 1, 1)
+        self.selectorLayout.addWidget(self.x_axis_label, row, 0, 1, 1)
         # Clear button
         self.clearButton = QPushButton("Clear")
         self.clearButton.setAutoFillBackground(True)
         self.clearButton.clicked.connect(self.clearSignals)
-        self.selectorLayout.addWidget(self.clearButton, 0, 2, 1, 1)
+        self.selectorLayout.addWidget(self.clearButton, row, 2, 1, 1)
         # List container
+        row += 1
         self.select = ListContainer(self.items, self.sub_goups)
         self.select.changeItem.connect(self.setSignal)
-        self.selectorLayout.addWidget(self.select, 1, 0, 1, 3)
+        self.selectorLayout.addWidget(self.select, row, 0, 1, 3)
 
         # Link axis checkbox
+        row += 1
         self.linkAxis = QCheckBox("Link Y-axes")
         self.linkAxis.setChecked(True)
         self.linkAxis.stateChanged.connect(self.setSignal)
-        self.selectorLayout.addWidget(self.linkAxis, 2, 0, 1, 3)
+        self.selectorLayout.addWidget(self.linkAxis, row, 0, 1, 3)
 
         # Create the x_axis selector
+        row += 1
         self.x_axis_label = QLabel("X axis:")
-        self.selectorLayout.addWidget(self.x_axis_label, 3, 0, 1, 1)
+        self.selectorLayout.addWidget(self.x_axis_label, row, 0, 1, 1)
         self.x_axis = QComboBox()
         self.x_axis.addItems(self.x_options)
         self.x_axis.setCurrentIndex(self.x_options.index(self.x_component))
         self.x_axis.currentIndexChanged.connect(self.setXAxis)
-        self.selectorLayout.addWidget(self.x_axis, 3, 1, 1, 2)
+        self.selectorLayout.addWidget(self.x_axis, row, 1, 1, 2)
         # endregion Selector Widget
 
         # region Plot Widget
@@ -567,6 +601,7 @@ def plot_window(
         }
         QComboBox { background-color: black; }
         QPushButton { background-color: black; }
+        QLineEdit { background: rgb(25, 25, 25); selection-background-color: rgb(255,255,255); }
         """
     )
 
