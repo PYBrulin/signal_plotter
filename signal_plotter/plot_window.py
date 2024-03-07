@@ -36,19 +36,6 @@ pyqtSignal = Signal
 pyqtSlot = Slot
 
 
-class MyCompleter(QCompleter):
-    def splitPath(self, path):
-        return path.split('.')
-
-    def pathFromIndex(self, index):
-        result = []
-        while index.isValid():
-            result = [self.model().data(index, Qt.DisplayRole)] + result
-            index = index.parent()
-        r = '.'.join(result)
-        return r
-
-
 class ListContainer(QScrollArea):
     changeItem = pyqtSignal(dict)
 
@@ -80,24 +67,23 @@ class ListContainer(QScrollArea):
             # self.listItem[key].setdefault("state", False)
             self.listItem[key]["state"] = key in items
         self.changeItem.emit({key: {"state": value["state"]} for key, value in self.listItem.items()})
-
-        # Reset the UI to reflect the new state and check the pre-selected items
-        self.resetUI()
+        self.resetUI()  # Reset the UI to reflect the new state
 
     def clearSignals(self) -> None:
         # For each element in items add a "state" flag
         for key, _ in self.listItem.items():
             self.listItem[key]["state"] = False
         self.changeItem.emit({key: {"state": value["state"]} for key, value in self.listItem.items()})
+        self.resetUI()  # Reset the UI to reflect the new state
 
-        # Reset the UI to reflect the new state and check the pre-selected items
-        self.resetUI()
+    def set_item_visibility(self, text: str) -> None:
+        for key in self.listItem:
+            self.listItem[key]["visible"] = text in key
+        self.resetUI()  # Reset the UI to reflect the new state
 
     def initUI(self) -> None:
         # Create the tree widget
         self.tree = QTreeWidget()
-
-        # Header
         self.tree.setColumnCount(2)
         self.tree.header().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.tree.header().setMinimumSectionSize(1)
@@ -112,16 +98,17 @@ class ListContainer(QScrollArea):
 
             # Add a second tree for the subgroups
             self.subtree = QTreeWidget()
-
-            # Header
             self.subtree.setColumnCount(2)
             self.subtree.header().setSectionResizeMode(0, QHeaderView.ResizeToContents)
             self.subtree.header().setMinimumSectionSize(1)
             self.subtree.setColumnWidth(1, 1)
             self.subtree.header().setSectionResizeMode(1, QHeaderView.Fixed)
             self.subtree.setHeaderHidden(True)
-
             self.tree_splitter.addWidget(self.subtree)
+
+            # Give the first tree more space by default
+            self.tree_splitter.setStretchFactor(0, 5)
+            self.tree_splitter.setStretchFactor(1, 1)
 
             # Set the splitter as the main widget
             self.setWidget(self.tree_splitter)
@@ -129,7 +116,7 @@ class ListContainer(QScrollArea):
             # Set the tree as the main widget
             self.setWidget(self.tree)
 
-        self.resetUI()
+        self.resetUI()  # Reset the UI to reflect the new state
 
     def update_selected_tree(self) -> None:
         # Clear the tree
@@ -141,6 +128,10 @@ class ListContainer(QScrollArea):
         tree_parent_levels = [self.tree]
 
         for i, key in enumerate(sorted(self.listItem.keys())):
+            # Skip invisible items
+            if not self.listItem[key]["visible"]:
+                continue
+
             depth = len(key.split("."))
             for j in range(depth):
                 if len(current_box) <= j:
@@ -293,8 +284,6 @@ class SignalContainer(PlotWidget):
 
     def initUI(self, **kwargs) -> None:
         # region Plot Widget
-        # self.graphWidget = PlotWidget()
-
         self.plotItem = self.getPlotItem()
         self.plotScene = self.scene()
 
@@ -527,42 +516,40 @@ class PlotWindow(QWidget):
         self.splitter.addWidget(self.selectorWidget)
 
         # Define the main widgets of the window
-        self.select = ListContainer(self.items, self.sub_goups)
-        self.graphWidget = SignalContainer(self.items, self.x_component)
+        self.listWidget = ListContainer(self.items, self.sub_goups)
+        self.signalWidget = SignalContainer(self.items, self.x_component)
 
-        # Add the search bar
         row = 0
-        self.searchbar = QLineEdit()
-        # self.searchbar.textChanged.connect(self.select.update_selected_subtree)
-        # self.search = MyCompleter(self.searchbar)
-        # self.search.setModel(list(self.items.keys()))
-        # self.search.setCompletionColumn(0)
-        # self.search.setCompletionRole(Qt.DisplayRole)
-        # self.search.setCaseSensitivity(Qt.CaseInsensitive)
-        # self.search.setCompletionMode(QCompleter.PopupCompletion)
-        # self.search.setWrapAround(False)
-        # self.search.setCompletionMode(QCompleter.UnfilteredPopupCompletion)
-        self.selectorLayout.addWidget(self.searchbar, row, 0, 1, 3)
 
         # Create the list container
-        row += 1
         self.x_axis_label = QLabel("Signals:")
         self.selectorLayout.addWidget(self.x_axis_label, row, 0, 1, 1)
         # Clear button
         self.clearButton = QPushButton("Clear")
         self.clearButton.setAutoFillBackground(True)
-        self.clearButton.clicked.connect(self.select.clearSignals)
+        self.clearButton.clicked.connect(self.listWidget.clearSignals)
         self.selectorLayout.addWidget(self.clearButton, row, 2, 1, 1)
         # List container
         row += 1
-        self.select.changeItem.connect(self.graphWidget.setSignal)
-        self.selectorLayout.addWidget(self.select, row, 0, 1, 3)
+        self.listWidget.changeItem.connect(self.signalWidget.setSignal)
+        self.selectorLayout.addWidget(self.listWidget, row, 0, 1, 3)
+
+        # Add the search bar
+        row += 1
+        self.searchbar = QLineEdit()
+        self.searchbar.setPlaceholderText("Search...")
+        self.searchbar.textChanged.connect(self.listWidget.set_item_visibility)
+        self.selectorLayout.addWidget(self.searchbar, row, 0, 1, 3)
+        self.completer = QCompleter(list(self.items.keys()))
+        self.completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.completer.setCompletionColumn(0)
+        self.searchbar.setCompleter(self.completer)
 
         # Link axis checkbox
         row += 1
         self.linkAxis = QCheckBox("Link Y-axes")
         self.linkAxis.setChecked(True)
-        self.linkAxis.toggled.connect(self.graphWidget.setSeparateAxes)
+        self.linkAxis.toggled.connect(self.signalWidget.setSeparateAxes)
         self.selectorLayout.addWidget(self.linkAxis, row, 0, 1, 3)
 
         # Create the x_axis selector
@@ -572,42 +559,42 @@ class PlotWindow(QWidget):
         self.x_axis = QComboBox()
         self.x_axis.addItems(self.x_options)
         self.x_axis.setCurrentIndex(self.x_options.index(self.x_component))
-        self.x_axis.currentIndexChanged.connect(self.graphWidget.setXAxis)
+        self.x_axis.currentIndexChanged.connect(self.signalWidget.setXAxis)
         self.selectorLayout.addWidget(self.x_axis, row, 1, 1, 2)
         # endregion Selector Widget
 
         # region Plot Widget
-        self.graphWidget.plotItem.vb.sigResized.connect(self.graphWidget.updateViews)
+        self.signalWidget.plotItem.vb.sigResized.connect(self.signalWidget.updateViews)
 
         # self.mainLayout.addLayout(self.signalLayout)
-        self.splitter.addWidget(self.graphWidget)
+        self.splitter.addWidget(self.signalWidget)
 
         # Set Strecth factor to give plot the most space
         self.splitter.setStretchFactor(0, 1)
         self.splitter.setStretchFactor(1, 10)
 
         # tune plots
-        self.graphWidget.setBackground((25, 25, 25, 255))  # RGBA         #background
-        # self.graphWidget.setTitle("Signal(t)", color="w", size="20pt")  # add title
+        self.signalWidget.setBackground((25, 25, 25, 255))  # RGBA         #background
+        # self.signalWidget.setTitle("Signal(t)", color="w", size="20pt")  # add title
         # styles = {"color": "r", "font-size": "20px"}  # add label style
-        # self.graphWidget.setLabel("left", "signal [SI]", **styles)  # add ylabel
-        self.graphWidget.getAxis("left").enableAutoSIPrefix(True)
-        # self.graphWidget.setLabel("bottom", "time [s]", **styles)  # add xlabel
-        self.graphWidget.getAxis("bottom").enableAutoSIPrefix(True)
-        self.graphWidget.showGrid(x=True, y=True)  # add grid
+        # self.signalWidget.setLabel("left", "signal [SI]", **styles)  # add ylabel
+        self.signalWidget.getAxis("left").enableAutoSIPrefix(True)
+        # self.signalWidget.setLabel("bottom", "time [s]", **styles)  # add xlabel
+        self.signalWidget.getAxis("bottom").enableAutoSIPrefix(True)
+        self.signalWidget.showGrid(x=True, y=True)  # add grid
         # Setup clipping and downsampling to reduce CPU usage
         # We expect very large signal data sets, so downsampling is a must
-        self.graphWidget.setClipToView(clip=True)
-        self.graphWidget.setDownsampling(
+        self.signalWidget.setClipToView(clip=True)
+        self.signalWidget.setDownsampling(
             ds=kwargs.get("downsampling", True),
             auto=True,
             mode="subsample",
         )
-        self.legend = self.graphWidget.addLegend()  # add grid
+        self.legend = self.signalWidget.addLegend()  # add grid
         # endregion Plot Widget
 
         # Connect the sigYRangeChanged signal to the updateViews slot
-        # self.graphWidget.plotItem.vb.sigYRangeChanged.connect(self.updateViews)
+        # self.signalWidget.plotItem.vb.sigYRangeChanged.connect(self.updateViews)
 
 
 def plot_window(
@@ -631,7 +618,8 @@ def plot_window(
 
     app = QApplication(sys.argv)
 
-    # Now use a palette to switch to dark colors:
+    # Now use a palette to switch to dark colors (personal preference)
+    # TODO: Allow the user to set the color palette (or at least switch between dark and light themes)
     palette = QPalette()
     palette.setColor(QPalette.Window, QColor(50, 50, 50))
     palette.setColor(QPalette.WindowText, Qt.white)
@@ -664,7 +652,7 @@ def plot_window(
         }
         QComboBox { background-color: black; }
         QPushButton { background-color: black; }
-        QLineEdit { background: rgb(25, 25, 25); selection-background-color: rgb(255,255,255); }
+        QLineEdit { color: rgb(255,255,255); background: rgb(25, 25, 25); }
         """
     )
 
@@ -684,9 +672,10 @@ def plot_window(
 
     # Set pre-selected items
     if pre_select is not None:
-        ex.select.set_manual_keys(pre_select)
+        ex.listWidget.set_manual_keys(pre_select)
 
     # Show the window
+    main_window.setFocus()
     main_window.show()
 
     # Run the application and wait for the window to be closed
