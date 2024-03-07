@@ -84,6 +84,15 @@ class ListContainer(QScrollArea):
         # Reset the UI to reflect the new state and check the pre-selected items
         self.resetUI()
 
+    def clearSignals(self) -> None:
+        # For each element in items add a "state" flag
+        for key, _ in self.listItem.items():
+            self.listItem[key]["state"] = False
+        self.changeItem.emit({key: {"state": value["state"]} for key, value in self.listItem.items()})
+
+        # Reset the UI to reflect the new state and check the pre-selected items
+        self.resetUI()
+
     def initUI(self) -> None:
         # Create the tree widget
         self.tree = QTreeWidget()
@@ -253,9 +262,7 @@ class ListContainer(QScrollArea):
         self.update_selected_tree()
 
 
-class SignalContainer(QWidget):
-    changeParam = pyqtSignal(dict)
-
+class SignalContainer(PlotWidget):
     class AxeReference:
         def __init__(self, view: ViewBox, axis: AxisItem, line: InfiniteLine, units: str = None) -> None:
             self.view = view
@@ -265,7 +272,6 @@ class SignalContainer(QWidget):
 
     def __init__(self, items: dict = None, x_component: str | None = "x", **kwargs) -> None:
         super().__init__()
-        self.title = kwargs.get("title", "Signal plotter")
 
         # Items dictionary of signals to be displayed
         self.items = items
@@ -273,130 +279,65 @@ class SignalContainer(QWidget):
 
         # X-axis component
         self.x_component: str = x_component if x_component is not None else "x"
-        self.x_options: list[str] = ["x"] + list(self.items.keys())
+        self.x_options: list[str] = ["x"] + (list(self.items.keys()) if self.items is not None else [])
 
         # Signal state
         self.sigstate = []
 
         # Axes dictionary
         self.axes = {}
+        self.linkAxis = True
 
         # Set up the UI
         self.initUI(**kwargs)
 
     def initUI(self, **kwargs) -> None:
-        self.setWindowTitle(self.title)
-        self.resize(800, 400)
-        self.mainLayout = QHBoxLayout()
-        self.setLayout(self.mainLayout)
-
-        # Set up the splitter
-        self.splitter = QSplitter()
-        self.mainLayout.addWidget(self.splitter)
-
-        # region Selector Widget
-        self.selectorWidget = QWidget()
-        self.selectorLayout = QGridLayout()
-        self.selectorWidget.setLayout(self.selectorLayout)
-        self.splitter.addWidget(self.selectorWidget)
-
-        # Add the search bar
-        row = 0
-        self.searchbar = QLineEdit()
-        self.searchbar.textChanged.connect(self.select.update_selected_subtree)
-        # self.search = MyCompleter(self.searchbar)
-        # self.search.setModel(list(self.items.keys()))
-        # self.search.setCompletionColumn(0)
-        # self.search.setCompletionRole(Qt.DisplayRole)
-        # self.search.setCaseSensitivity(Qt.CaseInsensitive)
-        # self.search.setCompletionMode(QCompleter.PopupCompletion)
-        # self.search.setWrapAround(False)
-        # self.search.setCompletionMode(QCompleter.UnfilteredPopupCompletion)
-        self.selectorLayout.addWidget(self.searchbar, row, 0, 1, 3)
-
-        # Create the list container
-        row += 1
-        self.x_axis_label = QLabel("Signals:")
-        self.selectorLayout.addWidget(self.x_axis_label, row, 0, 1, 1)
-        # Clear button
-        self.clearButton = QPushButton("Clear")
-        self.clearButton.setAutoFillBackground(True)
-        self.clearButton.clicked.connect(self.clearSignals)
-        self.selectorLayout.addWidget(self.clearButton, row, 2, 1, 1)
-        # List container
-        row += 1
-        self.select = ListContainer(self.items, self.sub_goups)
-        self.select.changeItem.connect(self.setSignal)
-        self.selectorLayout.addWidget(self.select, row, 0, 1, 3)
-
-        # Link axis checkbox
-        row += 1
-        self.linkAxis = QCheckBox("Link Y-axes")
-        self.linkAxis.setChecked(True)
-        self.linkAxis.stateChanged.connect(self.setSignal)
-        self.selectorLayout.addWidget(self.linkAxis, row, 0, 1, 3)
-
-        # Create the x_axis selector
-        row += 1
-        self.x_axis_label = QLabel("X axis:")
-        self.selectorLayout.addWidget(self.x_axis_label, row, 0, 1, 1)
-        self.x_axis = QComboBox()
-        self.x_axis.addItems(self.x_options)
-        self.x_axis.setCurrentIndex(self.x_options.index(self.x_component))
-        self.x_axis.currentIndexChanged.connect(self.setXAxis)
-        self.selectorLayout.addWidget(self.x_axis, row, 1, 1, 2)
-        # endregion Selector Widget
-
         # region Plot Widget
-        self.graphWidget = PlotWidget()
-        self.plotItem = self.graphWidget.getPlotItem()
-        self.plotScene = self.graphWidget.scene()
+        # self.graphWidget = PlotWidget()
+
+        self.plotItem = self.getPlotItem()
+        self.plotScene = self.scene()
 
         self.plotItem.vb.sigResized.connect(self.updateViews)
 
-        # self.mainLayout.addLayout(self.signalLayout)
-        self.splitter.addWidget(self.graphWidget)
-
-        # Set Strecth factor to give plot the most space
-        self.splitter.setStretchFactor(0, 1)
-        self.splitter.setStretchFactor(1, 10)
-
         # tune plots
-        self.graphWidget.setBackground((25, 25, 25, 255))  # RGBA         #background
-        # self.graphWidget.setTitle("Signal(t)", color="w", size="20pt")  # add title
+        self.setBackground((25, 25, 25, 255))  # RGBA         #background
+        # self.setTitle("Signal(t)", color="w", size="20pt")  # add title
         # styles = {"color": "r", "font-size": "20px"}  # add label style
-        # self.graphWidget.setLabel("left", "signal [SI]", **styles)  # add ylabel
-        self.graphWidget.getAxis("left").enableAutoSIPrefix(True)
-        # self.graphWidget.setLabel("bottom", "time [s]", **styles)  # add xlabel
-        self.graphWidget.getAxis("bottom").enableAutoSIPrefix(True)
-        self.graphWidget.showGrid(x=True, y=True)  # add grid
+        # self.setLabel("left", "signal [SI]", **styles)  # add ylabel
+        self.getAxis("left").enableAutoSIPrefix(True)
+        # self.setLabel("bottom", "time [s]", **styles)  # add xlabel
+        self.getAxis("bottom").enableAutoSIPrefix(True)
+        self.showGrid(x=True, y=True)  # add grid
         # Setup clipping and downsampling to reduce CPU usage
         # We expect very large signal data sets, so downsampling is a must
-        self.graphWidget.setClipToView(clip=True)
-        self.graphWidget.setDownsampling(
+        self.setClipToView(clip=True)
+        self.setDownsampling(
             ds=kwargs.get("downsampling", True),
             auto=True,
             mode="subsample",
         )
-        self.legend = self.graphWidget.addLegend()  # add grid
+        self.legend = self.addLegend()  # add grid
         # endregion Plot Widget
 
         # Connect the sigYRangeChanged signal to the updateViews slot
         # self.plotItem.vb.sigYRangeChanged.connect(self.updateViews)
 
     @property
-    def sperateAxes(self) -> bool:
-        return not self.linkAxis.isChecked()
+    def separateAxes(self) -> bool:
+        return not self.linkAxis
+
+    def setSeparateAxes(self, state: int) -> None:
+        self.linkAxis = state
+
+        # update graph (with the same signals)
+        self.setSignal(self.sigstate)
 
     def setXAxis(self, index: int) -> None:
         self.x_component = self.x_options[index]
 
         # update graph (with the same signals)
         self.setSignal(self.sigstate)
-
-    def clearSignals(self) -> None:
-        # self.select.changeItem.emit([False] * len(self.items))
-        self.select.set_manual_keys([])
 
     def updateViews(self) -> None:
         ## Handle view resizing
@@ -456,8 +397,8 @@ class SignalContainer(QWidget):
             self.axes[units].axis.setLabel(units, units=units, color=intColor(sorted(list(self.axes.keys())).index(units)))
             self.axes[units].view.addItem(self.axes[units].line)
 
-        # Update wether the axis is linked or not
-        self.axes[units].view.setYLink(self.plotItem if self.linkAxis.isChecked() else None)
+        # Update wether the axis is linked or not (Do not link separate axes)
+        self.axes[units].view.setYLink(self.plotItem if not self.separateAxes else None)
 
     def cleanAxes(self) -> None:
         # Remove unused axis
@@ -472,7 +413,7 @@ class SignalContainer(QWidget):
                     ]
                 )
                 or self.x_component != "x"
-                or not self.sperateAxes
+                or not self.separateAxes
             ):
                 logger.debug(f"Removing axis for units {units}")
                 if self.axes[units].view is not self.plotItem.getViewBox():
@@ -487,7 +428,7 @@ class SignalContainer(QWidget):
         self.sigstate = states
 
         # update graph
-        self.graphWidget.clear()
+        self.clear()
         for units, axis_item in self.axes.items():
             axis_item.view.clear()
             # Re-add the line which was removed by clear()
@@ -495,7 +436,7 @@ class SignalContainer(QWidget):
                 axis_item.view.addItem(axis_item.line)
 
         # Reset the y-axis label if axes are linked
-        if not self.sperateAxes:
+        if not self.separateAxes:
             self.plotItem.setLabel("left", label=None, units=None)
 
         self.cleanAxes()
@@ -514,12 +455,12 @@ class SignalContainer(QWidget):
             # Reset to default (Assume all signals are time-based)
             self.plotItem.setLabel("bottom", "time", units="s")
 
-        # self.graphWidget.plot(self.time, self.data,name = "signal",pen=self.pen,symbol='+', symbolSize=5, symbolBrush='w')
+        # self.plot(self.time, self.data,name = "signal",pen=self.pen,symbol='+', symbolSize=5, symbolBrush='w')
         for j, (key, data) in enumerate([(key, data) for key, data in self.items.items() if data["state"]]):
             # If units is provided, use it to display the signal according to the respective axis
 
             if self.x_component == "x":
-                if self.sperateAxes and "units" in data and data["units"] is not None:
+                if self.separateAxes and "units" in data and data["units"] is not None:
                     self.createAxis(data["units"])
                     units = data["units"]
                     plot = PlotCurveItem(data["x"], data["y"], name=key, pen=intColor(j))
@@ -545,6 +486,128 @@ class SignalContainer(QWidget):
 
         # Update the views
         self.updateViews()
+
+
+class PlotWindow(QWidget):
+    def __init__(self, items: dict = None, x_component: str | None = "x", **kwargs) -> None:
+        super().__init__()
+        self.title = kwargs.get("title", "Signal plotter")
+
+        # Items dictionary of signals to be displayed
+        self.items = items
+        self.sub_goups = kwargs.get("sub_groups", None)
+
+        # X-axis component
+        self.x_component: str = x_component if x_component is not None else "x"
+        self.x_options: list[str] = ["x"] + list(self.items.keys())
+
+        # Signal state
+        self.sigstate = []
+
+        # Axes dictionary
+        self.axes = {}
+
+        # Set up the UI
+        self.initUI(**kwargs)
+
+    def initUI(self, **kwargs) -> None:
+        self.setWindowTitle(self.title)
+        self.resize(800, 400)
+        self.mainLayout = QHBoxLayout()
+        self.setLayout(self.mainLayout)
+
+        # Set up the splitter
+        self.splitter = QSplitter()
+        self.mainLayout.addWidget(self.splitter)
+
+        # region Selector Widget
+        self.selectorWidget = QWidget()
+        self.selectorLayout = QGridLayout()
+        self.selectorWidget.setLayout(self.selectorLayout)
+        self.splitter.addWidget(self.selectorWidget)
+
+        # Define the main widgets of the window
+        self.select = ListContainer(self.items, self.sub_goups)
+        self.graphWidget = SignalContainer(self.items, self.x_component)
+
+        # Add the search bar
+        row = 0
+        self.searchbar = QLineEdit()
+        # self.searchbar.textChanged.connect(self.select.update_selected_subtree)
+        # self.search = MyCompleter(self.searchbar)
+        # self.search.setModel(list(self.items.keys()))
+        # self.search.setCompletionColumn(0)
+        # self.search.setCompletionRole(Qt.DisplayRole)
+        # self.search.setCaseSensitivity(Qt.CaseInsensitive)
+        # self.search.setCompletionMode(QCompleter.PopupCompletion)
+        # self.search.setWrapAround(False)
+        # self.search.setCompletionMode(QCompleter.UnfilteredPopupCompletion)
+        self.selectorLayout.addWidget(self.searchbar, row, 0, 1, 3)
+
+        # Create the list container
+        row += 1
+        self.x_axis_label = QLabel("Signals:")
+        self.selectorLayout.addWidget(self.x_axis_label, row, 0, 1, 1)
+        # Clear button
+        self.clearButton = QPushButton("Clear")
+        self.clearButton.setAutoFillBackground(True)
+        self.clearButton.clicked.connect(self.select.clearSignals)
+        self.selectorLayout.addWidget(self.clearButton, row, 2, 1, 1)
+        # List container
+        row += 1
+        self.select.changeItem.connect(self.graphWidget.setSignal)
+        self.selectorLayout.addWidget(self.select, row, 0, 1, 3)
+
+        # Link axis checkbox
+        row += 1
+        self.linkAxis = QCheckBox("Link Y-axes")
+        self.linkAxis.setChecked(True)
+        self.linkAxis.toggled.connect(self.graphWidget.setSeparateAxes)
+        self.selectorLayout.addWidget(self.linkAxis, row, 0, 1, 3)
+
+        # Create the x_axis selector
+        row += 1
+        self.x_axis_label = QLabel("X axis:")
+        self.selectorLayout.addWidget(self.x_axis_label, row, 0, 1, 1)
+        self.x_axis = QComboBox()
+        self.x_axis.addItems(self.x_options)
+        self.x_axis.setCurrentIndex(self.x_options.index(self.x_component))
+        self.x_axis.currentIndexChanged.connect(self.graphWidget.setXAxis)
+        self.selectorLayout.addWidget(self.x_axis, row, 1, 1, 2)
+        # endregion Selector Widget
+
+        # region Plot Widget
+        self.graphWidget.plotItem.vb.sigResized.connect(self.graphWidget.updateViews)
+
+        # self.mainLayout.addLayout(self.signalLayout)
+        self.splitter.addWidget(self.graphWidget)
+
+        # Set Strecth factor to give plot the most space
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 10)
+
+        # tune plots
+        self.graphWidget.setBackground((25, 25, 25, 255))  # RGBA         #background
+        # self.graphWidget.setTitle("Signal(t)", color="w", size="20pt")  # add title
+        # styles = {"color": "r", "font-size": "20px"}  # add label style
+        # self.graphWidget.setLabel("left", "signal [SI]", **styles)  # add ylabel
+        self.graphWidget.getAxis("left").enableAutoSIPrefix(True)
+        # self.graphWidget.setLabel("bottom", "time [s]", **styles)  # add xlabel
+        self.graphWidget.getAxis("bottom").enableAutoSIPrefix(True)
+        self.graphWidget.showGrid(x=True, y=True)  # add grid
+        # Setup clipping and downsampling to reduce CPU usage
+        # We expect very large signal data sets, so downsampling is a must
+        self.graphWidget.setClipToView(clip=True)
+        self.graphWidget.setDownsampling(
+            ds=kwargs.get("downsampling", True),
+            auto=True,
+            mode="subsample",
+        )
+        self.legend = self.graphWidget.addLegend()  # add grid
+        # endregion Plot Widget
+
+        # Connect the sigYRangeChanged signal to the updateViews slot
+        # self.graphWidget.plotItem.vb.sigYRangeChanged.connect(self.updateViews)
 
 
 def plot_window(
@@ -616,7 +679,7 @@ def plot_window(
     main_window.setWindowTitle(kwargs.get("title", "Signal plotter"))
     main_window.resize(800, 400)
 
-    ex = SignalContainer(items=items, x_component=x_component, sub_groups=sub_groups, **kwargs)
+    ex = PlotWindow(items=items, x_component=x_component, sub_groups=sub_groups, **kwargs)
     main_window.setCentralWidget(ex)
 
     # Set pre-selected items
