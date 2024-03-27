@@ -77,8 +77,16 @@ class ListContainer(QScrollArea):
         self.resetUI()  # Reset the UI to reflect the new state
 
     def set_item_visibility(self, text: str) -> None:
+        search = text.split("||")
         for key in self.listItem:
-            self.listItem[key]["visible"] = text in key
+            self.listItem[key]["visible"] = any([s in key for s in search])
+        self.resetUI()  # Reset the UI to reflect the new state
+
+    def select_visible_items(self) -> None:
+        for key in self.listItem:
+            # Visibility is already set by set_item_visibility during the text completion
+            self.listItem[key]["state"] = self.listItem[key]["visible"]
+        self.changeItem.emit({key: {"state": value["state"]} for key, value in self.listItem.items()})
         self.resetUI()  # Reset the UI to reflect the new state
 
     def initUI(self) -> None:
@@ -178,6 +186,9 @@ class ListContainer(QScrollArea):
             child.setText(0, key)
             child.setFlags(child.flags() | Qt.ItemIsAutoTristate | Qt.ItemIsUserCheckable)
             for sub_value in value:
+                if sub_value not in self.listItem:
+                    logger.warning(f"Subgroup {sub_value} not found in the list of items")
+                    continue
                 sub_child = QTreeWidgetItem(child)
                 sub_child.setFlags(sub_child.flags() | child.flags() | Qt.ItemIsAutoTristate | Qt.ItemIsUserCheckable)
                 sub_child.setCheckState(
@@ -539,6 +550,7 @@ class PlotWindow(QWidget):
         self.searchbar = QLineEdit()
         self.searchbar.setPlaceholderText("Search...")
         self.searchbar.textChanged.connect(self.listWidget.set_item_visibility)
+        self.searchbar.returnPressed.connect(self.listWidget.select_visible_items)
         self.selectorLayout.addWidget(self.searchbar, row, 0, 1, 3)
         self.completer = QCompleter(list(self.items.keys()))
         self.completer.setCaseSensitivity(Qt.CaseInsensitive)
