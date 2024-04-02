@@ -62,7 +62,7 @@ plot_signals(data)
 The script `csv_parser.py` is a simple script that can be used to parse a CSV file and plot the data. The script can be used directly from the command line if the package is installed:
 
 ```bash
-python -m signal_plotter.csv_parser.py path/to/file.csv
+python -m signal_plotter.csv_parser path/to/file.csv
 ```
 
 Documentation for the script can be found using the `-h` flag:
