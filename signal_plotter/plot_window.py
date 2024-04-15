@@ -459,31 +459,33 @@ class SignalContainer(PlotWidget):
         for j, (key, data) in enumerate([(key, data) for key, data in self.items.items() if data["state"]]):
             # If units is provided, use it to display the signal according to the respective axis
 
-            if self.x_component == "x":
-                if self.separateAxes and "units" in data and data["units"] is not None:
-                    self.createAxis(data["units"])
-                    units = data["units"]
-                    plot = PlotCurveItem(data["x"], data["y"], name=key, pen=intColor(j))
-                    self.axes[units].view.addItem(plot)
-                    self.legend.addItem(plot, f"{key}" + (f" ({data['units']})" if "units" in data else ""))
+            try:
+                if self.x_component == "x":
+                    if self.separateAxes and "units" in data and data["units"] is not None:
+                        self.createAxis(data["units"])
+                        units = data["units"]
+                        plot = PlotCurveItem(data["x"], data["y"], name=key, pen=intColor(j))
+                        self.axes[units].view.addItem(plot)
+                        self.legend.addItem(plot, f"{key}" + (f" ({data['units']})" if "units" in data else ""))
+                    else:
+                        self.plotItem.plot(data["x"], data["y"], name=key, pen=intColor(j))
+
                 else:
-                    self.plotItem.plot(data["x"], data["y"], name=key, pen=intColor(j))
-
-            else:
-                # if the signals don't have the same length, the plot will fail
-                if len(self.items[self.x_component]["y"]) != len(data["y"]):
-                    logger.error(
-                        f"Signal {key} has different length for x and y components: "
-                        + f"{len(self.items[self.x_component]['y'])} != {len(data['y'])}"
+                    # if the signals don't have the same length, the plot will fail
+                    if len(self.items[self.x_component]["y"]) != len(data["y"]):
+                        logger.error(
+                            f"Signal {key} has different length for x and y components: "
+                            + f"{len(self.items[self.x_component]['y'])} != {len(data['y'])}"
+                        )
+                        continue
+                    self.plotItem.plot(
+                        self.items[self.x_component]["y"],
+                        data["y"],
+                        name=f"{key}" + (f" ({data['units']})" if "units" in data else ""),
+                        pen=intColor(j),
                     )
-                    continue
-                self.plotItem.plot(
-                    self.items[self.x_component]["y"],
-                    data["y"],
-                    name=f"{key}" + (f" ({data['units']})" if "units" in data else ""),
-                    pen=intColor(j),
-                )
-
+            except Exception as e:
+                logger.error(f"Error plotting signal {key}: {e}", exc_info=True)
         # Update the views
         self.updateViews()
 
