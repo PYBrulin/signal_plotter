@@ -10,7 +10,37 @@ import tqdm
 
 from signal_plotter.plot_window import plot_window
 
+
+class ColoredFormatter(logging.Formatter):
+    grey = "\x1b[38;20m"
+    yellow = "\x1b[33;20m"
+    magenta = "\x1b[35;20m"
+    red = "\x1b[31;20m"
+    bold_red = "\x1b[31;1m"
+    reset = "\x1b[0m"
+    fmt = "[%(levelname)1.1s] %(asctime)s %(filename)s:%(lineno)d - %(message)s"
+    FORMATS = {
+        logging.DEBUG: magenta + fmt + reset,
+        logging.INFO: grey + fmt + reset,
+        logging.WARNING: yellow + fmt + reset,
+        logging.ERROR: red + fmt + reset,
+        logging.CRITICAL: bold_red + fmt + reset,
+    }
+
+    def format(self, record) -> str:
+        log_fmt = self.FORMATS.get(record.levelno)
+        formatter = logging.Formatter(log_fmt)
+        return formatter.format(record)
+
+
 if __name__ == "__main__":
+    logger = logging.getLogger('plot_window_tree')
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.INFO)
+    colored_formatter = ColoredFormatter()
+    stream_handler.setFormatter(colored_formatter)
+    logger.addHandler(stream_handler)
+
     # Parse the arguments
     parser = argparse.ArgumentParser(description="Read the content of a csv file with pandas and plot the results")
     parser.add_argument("csv_file", type=str, nargs="+", help="The csv file to read")
@@ -36,7 +66,7 @@ if __name__ == "__main__":
                 logging.warning(f"The column {column} is not a numerical signal, skipping")
                 continue
 
-            items[os.path.splitext(os.path.basename(csv_file))[0] + "." + column] = {
+            items[((os.path.splitext(os.path.basename(csv_file))[0] + ".") if len(args.csv_file) > 1 else "") + column] = {
                 "x": numpy.ravel(df.index),
                 "y": numpy.ravel(df[column]),
             }
