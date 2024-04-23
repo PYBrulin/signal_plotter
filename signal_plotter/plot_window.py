@@ -528,6 +528,9 @@ class PlotWindow(QWidget):
                             self.axes[units].view.addItem(plot)
                             self.legend.addItem(plot, f"{key}" + (f" ({data['units']})" if "units" in data else ""))
                         else:
+                            if isinstance(data["x"], RecursiveDict):
+                                # TODO: investigate why a RecusiveDict is being passed sometimes
+                                continue
                             self.plotItem.plot(data["x"], data["y"], name=key, pen=intColor(j))
 
                     else:
@@ -553,7 +556,7 @@ class PlotWindow(QWidget):
             if self.math_operations and self.x_component == "x":
                 for j, (eval_name, eval_data) in enumerate(zip(self.math_operations, self.math_signal), start=j + 1):
                     try:
-                        logger.info(f"Plotting eval signal {eval_name}", eval_data)
+                        logger.info(f"Plotting eval signal {eval_name}")
                         self.plotItem.plot(
                             data["x"],
                             eval_data,
