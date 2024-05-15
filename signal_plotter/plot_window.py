@@ -521,17 +521,21 @@ class PlotWindow(QWidget):
                 # If units is provided, use it to display the signal according to the respective axis
                 try:
                     if self.x_component == "x":
+                        # Convert the data to 1D NumPy arrays
+                        x_data = np.array(data["x"]).flatten()
+                        y_data = np.array(data["y"]).flatten()
+
                         if self.separateAxes and "units" in data and data["units"] is not None:
                             self.createAxis(data["units"])
                             units = data["units"]
-                            plot = PlotCurveItem(data["x"], data["y"], name=key, pen=intColor(j))
+                            plot = PlotCurveItem(x_data, y_data, name=key, pen=intColor(j))
                             self.axes[units].view.addItem(plot)
                             self.legend.addItem(plot, f"{key}" + (f" ({data['units']})" if "units" in data else ""))
                         else:
-                            if isinstance(data["x"], RecursiveDict):
+                            if isinstance(x_data, RecursiveDict):
                                 # TODO: investigate why a RecusiveDict is being passed sometimes
                                 continue
-                            self.plotItem.plot(data["x"], data["y"], name=key, pen=intColor(j))
+                            self.plotItem.plot(x_data, y_data, name=key, pen=intColor(j))
 
                     else:
                         # if the signals don't have the same length, the plot will fail
