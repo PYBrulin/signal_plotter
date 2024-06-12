@@ -517,7 +517,8 @@ class PlotWindow(QWidget):
                 self.plotItem.setLabel("bottom", "time", units="s")
 
             # self.plot(self.time, self.data,name = "signal",pen=self.pen,symbol='+', symbolSize=5, symbolBrush='w')
-            for j, (key, data) in enumerate([(key, data) for key, data in self.items.items() if data["state"]]):
+            data_to_plot = [(key, data) for key, data in self.items.items() if (data["state"] and "x" in data and "y" in data)]
+            for j, (key, data) in enumerate(data_to_plot):
                 # If units is provided, use it to display the signal according to the respective axis
                 try:
                     if self.x_component == "x":
