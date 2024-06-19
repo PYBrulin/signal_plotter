@@ -1,6 +1,7 @@
 """ Read the content of a csv file with pandas and plot the results"""
 
 import argparse
+import glob
 import logging
 import os
 
@@ -51,7 +52,18 @@ if __name__ == "__main__":
 
     items = {}
 
+    csv_files = args.csv_file
+
     for csv_file in args.csv_file:
+        # Check if the csv_file string represent a regex
+        if any(c in csv_file for c in "*?"):
+            files = glob.glob(csv_file)
+            if not files:
+                raise FileNotFoundError(f"No file found with the pattern {csv_file}")
+            csv_files.remove(csv_file)
+            csv_files.extend(files)
+
+    for csv_file in csv_files:
         if not os.path.exists(csv_file):
             raise FileNotFoundError(f"The file {csv_file} doesn't exist")
 
