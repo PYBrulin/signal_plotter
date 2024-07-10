@@ -5,7 +5,7 @@ import os
 import sys
 
 import numpy as np
-from pyqtgraph import AxisItem, InfiniteLine, PlotCurveItem, PlotWidget, ViewBox, intColor
+from pyqtgraph import AxisItem, InfiniteLine, PlotCurveItem, PlotWidget, ViewBox, intColor, mkBrush, mkPen
 from pyqtgraph.Qt.QtCore import Qt, Signal, Slot
 from pyqtgraph.Qt.QtGui import QColor, QPalette
 from pyqtgraph.Qt.QtWidgets import (
@@ -384,6 +384,8 @@ class PlotWindow(QWidget):
             # Connect the sigYRangeChanged signal to the updateViews slot
             # self.plotItem.vb.sigYRangeChanged.connect(self.updateViews)
 
+            self.updatingViews = False  # Add a flag to track if updateViews is currently running
+
         @property
         def separateAxes(self) -> bool:
             return not self.linkAxis
@@ -401,14 +403,22 @@ class PlotWindow(QWidget):
             self.setSignal(self.sigstate)
 
         def updateViews(self) -> None:
-            ## Handle view resizing
-            ## view has resized; update auxiliary views to match
-            for axis in self.axes.values():
-                axis.view.setGeometry(self.plotItem.vb.sceneBoundingRect())
-                ## need to re-update linked axes since this was called
-                ## incorrectly while views had different shapes.
-                ## (probably this should be handled in ViewBox.resizeEvent)
-                axis.view.linkedViewChanged(self.plotItem.vb, axis.view.XAxis)
+            if self.updatingViews:  # Check if updateViews is already running
+                return  # If so, simply return without doing anything to avoid recursion
+
+            self.updatingViews = True  # Set the flag to indicate that updateViews is running
+
+            try:
+                ## Handle view resizing
+                ## view has resized; update auxiliary views to match
+                for axis in self.axes.values():
+                    axis.view.setGeometry(self.plotItem.vb.sceneBoundingRect())
+                    ## need to re-update linked axes since this was called
+                    ## incorrectly while views had different shapes.
+                    ## (probably this should be handled in ViewBox.resizeEvent)
+                    axis.view.linkedViewChanged(self.plotItem.vb, axis.view.XAxis)
+            finally:
+                self.updatingViews = False  # Reset the flag when done
 
         def createAxis(self, units: str) -> None:
             # if the main axis does not have any units, give it priority over the others
@@ -525,18 +535,47 @@ class PlotWindow(QWidget):
                         # Convert the data to 1D NumPy arrays
                         x_data = np.array(data["x"]).flatten()
                         y_data = np.array(data["y"]).flatten()
+                        # print(f"Plotting signal {key} with {data}")
 
                         if self.separateAxes and "units" in data and data["units"] is not None:
                             self.createAxis(data["units"])
                             units = data["units"]
-                            plot = PlotCurveItem(x_data, y_data, name=key, pen=intColor(j))
+                            if not data.get("scatter", False):
+                                plot = PlotCurveItem(
+                                    x_data, y_data, name=key, pen=mkPen(intColor(j, alpha=int(255 * data.get("alpha", 1.0))))
+                                )
+                            else:
+                                plot = PlotCurveItem(
+                                    x_data,
+                                    y_data,
+                                    name=key,
+                                    pen=None,
+                                    symbol='+',
+                                    symbolSize=5,
+                                    symbolBrush=mkBrush(intColor(j, alpha=int(255 * data.get("alpha", 1.0)))),
+                                    symbolPen=mkPen(intColor(j, alpha=int(255 * data.get("alpha", 1.0)))),
+                                )
                             self.axes[units].view.addItem(plot)
                             self.legend.addItem(plot, f"{key}" + (f" ({data['units']})" if "units" in data else ""))
                         else:
-                            if isinstance(x_data, RecursiveDict):
-                                # TODO: investigate why a RecusiveDict is being passed sometimes
-                                continue
-                            self.plotItem.plot(x_data, y_data, name=key, pen=intColor(j))
+                            if not data.get("scatter", False):
+                                if isinstance(x_data, RecursiveDict):
+                                    # TODO: investigate why a RecusiveDict is being passed sometimes
+                                    continue
+                                self.plotItem.plot(
+                                    x_data, y_data, name=key, pen=mkPen(intColor(j, alpha=int(255 * data.get("alpha", 1.0))))
+                                )
+                            else:
+                                self.plotItem.plot(
+                                    x_data,
+                                    y_data,
+                                    name=key,
+                                    pen=None,
+                                    symbol='+',
+                                    symbolSize=5,
+                                    symbolBrush=mkBrush(intColor(j, alpha=int(255 * data.get("alpha", 1.0)))),
+                                    symbolPen=mkPen(intColor(j, alpha=int(255 * data.get("alpha", 1.0)))),
+                                )
 
                     else:
                         # if the signals don't have the same length, the plot will fail
@@ -546,12 +585,24 @@ class PlotWindow(QWidget):
                                 + f"{len(self.items[self.x_component]['y'])} != {len(data['y'])}"
                             )
                             continue
-                        self.plotItem.plot(
-                            self.items[self.x_component]["y"],
-                            data["y"],
-                            name=f"{key}" + (f" ({data['units']})" if "units" in data else ""),
-                            pen=intColor(j),
-                        )
+                        if not data.get("scatter", False):
+                            self.plotItem.plot(
+                                self.items[self.x_component]["y"],
+                                data["y"],
+                                name=f"{key}" + (f" ({data['units']})" if "units" in data else ""),
+                                pen=mkPen(intColor(j, alpha=int(255 * data.get("alpha", 1.0)))),
+                            )
+                        else:
+                            self.plotItem.plot(
+                                self.items[self.x_component]["y"],
+                                data["y"],
+                                name=f"{key}" + (f" ({data['units']})" if "units" in data else ""),
+                                pen=None,
+                                symbol='+',
+                                symbolSize=5,
+                                symbolBrush=mkBrush(intColor(j, alpha=int(255 * data.get("alpha", 1.0)))),
+                                symbolPen=mkPen(intColor(j, alpha=int(255 * data.get("alpha", 1.0)))),
+                            )
                 except Exception as e:
                     logger.error(f"Error plotting signal {key}: {e}", exc_info=True)
             # Update the views
@@ -810,6 +861,7 @@ if __name__ == "__main__":
                 "x": time,
                 "y": x * fun(time) + np.random.normal(scale=s, size=len(time)),
                 "units": "V",
+                "scatter": i == 2,
             }
             for k in range(3):
                 x = np.random.choice([-1, 1])  # random sign
@@ -839,6 +891,8 @@ if __name__ == "__main__":
                 "x": time,
                 "y": np.random.rand(len(time)) * 100,
                 "units": "Nm",
+                "alpha": 0.5,
+                # "scatter": True,
             }
         }
     )
